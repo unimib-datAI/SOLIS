@@ -26,41 +26,6 @@ def _banner(text: str, width: int = 62) -> None:
     print("╚" + "═" * width + "╝")
 
 
-def draw_graphs() -> None:
-    """
-    Save the Mermaid diagram for both graphs to .mmd text files.
-
-    Mermaid text can be rendered:
-      • Online  → https://mermaid.live
-      • CLI     → mmdc -i graph.mmd -o graph.svg
-      • VS Code → Mermaid Preview extension
-    """
-    from graphs.worker_graph import worker_graph
-    from graphs.orchestrator_graph import orchestrator_graph
-
-    graphs = {
-        "worker_graph.mmd":       worker_graph,
-        "orchestrator_graph.mmd": orchestrator_graph,
-    }
-
-    for filename, graph in graphs.items():
-        mermaid_text: str = graph.get_graph().draw_mermaid()
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(mermaid_text)
-        print(f"[Visualise] Saved Mermaid diagram → {filename}")
-
-    # Optionally render to PNG (requires internet or local mermaid install)
-    try:
-        for filename, graph in graphs.items():
-            png_path = filename.replace(".mmd", ".png")
-            png_bytes: bytes = graph.get_graph().draw_mermaid_png()
-            with open(png_path, "wb") as f:
-                f.write(png_bytes)
-            print(f"[Visualise] Saved PNG → {png_path}")
-    except Exception as exc:
-        print(f"[Visualise] PNG rendering skipped: {exc}")
-
-
 def main(tasks_json: str = TASKS_JSON) -> dict:
     tasks: list[dict] = json.loads(tasks_json)
 
@@ -90,7 +55,4 @@ def main(tasks_json: str = TASKS_JSON) -> dict:
 
 
 if __name__ == "__main__":
-    if "--draw" in sys.argv:
-        draw_graphs()
-    else:
-        main()
+    main()
