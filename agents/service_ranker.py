@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import List, Dict
 
-from config import build_llm_from_model_and_temperature
+from config import build_llm_from_model_and_temperature, testing_mode, testing_mode_agents
 from schemas import WorkerState
 
 def build_service_profile(td: dict) -> dict:
@@ -45,6 +44,7 @@ Focus ONLY on:
 - general capability fit
 
 DO NOT assign same score to multiple services: rank them in order of relevance.
+You can discard services that are irrelevant.
 
 TASK:
 {json.dumps(task, indent=2)}
@@ -102,10 +102,6 @@ Return ONLY JSON.
     return json.loads(llm.invoke(prompt).content.strip())
 
 
-# ----------------------------
-# AGENT NODE
-# ----------------------------
-
 def service_ranker_agent(state: WorkerState) -> dict:
     """
     Input:
@@ -120,44 +116,54 @@ def service_ranker_agent(state: WorkerState) -> dict:
     2. Fine ranking (detailed evaluation on full TDs of top-3 services)
     """
 
-    task = state["current_task"]
-    candidates = state.get("query_result", [])
+    if(not testing_mode or not "test_service_ranker_agent" in testing_mode_agents):
+        task = state["current_task"]
+        candidates = state.get("query_result", [])
 
-    if not candidates:
-        return {"ranked_services": []}
+        if not candidates:
+            return {"ranked_services": []}
 
-    llm = build_llm_from_model_and_temperature(
-        "qwen/qwen3.6-35b-a3b",
-        0.2
-    )
+        llm = build_llm_from_model_and_temperature(
+            "qwen/qwen3.6-35b-a3b",
+            0.2
+        )
 
-    profiles = [build_service_profile(td) for td in candidates]
-    #for p in profiles:
-    #    print(f"  - Profile: {p['service_id']} | {p['title']} | capabilities={p['capabilities']}")
+        profiles = [build_service_profile(td) for td in candidates]
+        #for p in profiles:
+        #    print(f"  - Profile: {p['service_id']} | {p['title']} | capabilities={p['capabilities']}")
 
-    coarse = coarse_rank(llm, task, profiles)
+        coarse = coarse_rank(llm, task, profiles)
 
-    print(f"[ServiceRankerAgent] Coarse ranking completed. Top candidates:")
-    for r in coarse[:3]:
-        print(f"  - {r['service_id']} | title={r['title']} | score={r['score']} | reason={r['reason']}")
+        print(f"[ServiceRankerAgent] Coarse ranking completed. Top candidates:")
+        for r in coarse[:3]:
+            print(f"  - {r['service_id']} | title={r['title']} | score={r['score']} | reason={r['reason']}")
 
-    top_k_ids = {r["service_id"] for r in coarse[:3]}
-    top_k_full = [
-        td for td in candidates
-        if str(td.get("_id")) in top_k_ids
-    ]
+        top_k_ids = {r["service_id"] for r in coarse[:3]}
+        top_k_full = [
+            td for td in candidates
+            if str(td.get("_id")) in top_k_ids
+        ]
 
-    final_ranking = fine_rank(llm, task, top_k_full, coarse[:3])
+        final_ranking = fine_rank(llm, task, top_k_full, coarse[:3])
 
-    print(f"[ServiceRankerAgent] Completed ranking.")
+        print(f"[ServiceRankerAgent] Completed ranking.")
 
-    if not final_ranking:
-        return {"ranked_services": coarse}
-    
+        if not final_ranking:
+            return {"ranked_services": coarse}
+        
+        else:
+            print(f"  Top 3 ranked services:")
+            for r in final_ranking[:3]:
+                print(f"    - {r['service_id']} | title={r['title']} | score={r['score']} | reason={r['reason']}")
+            return {
+                "ranked_services": final_ranking
+            }
     else:
-        print(f"  Top 3 ranked services:")
-        for r in final_ranking[:3]:
-            print(f"    - {r['service_id']} | title={r['title']} | score={r['score']} | reason={r['reason']}")
-        return {
-            "ranked_services": final_ranking
-        }
+        SIMULATED_RANKING = [
+            {
+                "service_id": "6a37b2e919d47b506356159e",
+                "title": "Reverse Geocode",
+                "capabilities": "Position Position of the result in the form of latitude,longitude coordinates. Position of the entry point.', 'Address The structured address for the result.', 'Summary Summary information about the search that was performed.', 'Reverse Geocode Translate coordinates into human-understandable street addresses, street elements, or geography."
+            }
+        ]
+        return { "ranked_services": SIMULATED_RANKING }
